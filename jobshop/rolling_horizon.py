@@ -1,3 +1,6 @@
+import Queue as Q
+
+
 class JobWindow(object):
     def __init__(self, predictive_time):
         self.__predictive_time = predictive_time
@@ -22,3 +25,32 @@ class JobWindow(object):
 
     def get_jobs(self):
         return list(self.__jobs)
+
+
+class JobBacklog(object):
+    def __init__(self):
+        self.__jobs_priority_queue = Q.PriorityQueue()
+
+    def add_problem(self, problem):
+        for job in problem.jobs_list:
+            self.add_job(job)
+
+    def add_job(self, job):
+        self.__jobs_priority_queue.put((JobPrioritizer.prioritize(job), job))
+
+    def is_empty(self):
+        return self.__jobs_priority_queue.empty()
+
+    def pop_top_priority_job(self):
+        if self.is_empty():
+            raise Exception("Backlog is empty")
+        return self.__jobs_priority_queue.get()[1]
+
+    def size(self):
+        return self.__jobs_priority_queue.qsize()
+
+
+class JobPrioritizer(object):
+    @staticmethod
+    def prioritize(job):
+        return job.arrival_time

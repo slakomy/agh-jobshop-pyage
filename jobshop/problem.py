@@ -1,5 +1,4 @@
 import copy
-from pyage.core.operator import Operator
 import logging
 
 logger = logging.getLogger(__name__)
@@ -45,9 +44,10 @@ class Problem(object):
 
 
 class Job(object):
-    def __init__(self, jid, tasks_list):
+    def __init__(self, jid, tasks_list, arrival_time=None):
         self.jid = jid
         self.tasks_list = tasks_list
+        self.arrival_time = arrival_time
         for task in tasks_list:
             task.job = self
 
@@ -64,6 +64,9 @@ class Job(object):
 
     def __repr__(self):
         return self.__str__()
+
+    def __cmp__(self, other):
+        return cmp(self.arrival_time, other.arrival_time)
 
     def get_tasks_list(self):
         return self.tasks_list
