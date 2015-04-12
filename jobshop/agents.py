@@ -1,15 +1,9 @@
 from pyage.jobshop.genetic_classes import *
-import logging
-import itertools
-import copy
-
 from pyage.core.inject import Inject
-from problem import Solution
-from manufacture import Manufacture
-from timeKeeper import TimeKeeper
-from problemGenerator import PredictedProblemGenerator
+import logging
 
 logger = logging.getLogger(__name__)
+
 
 class MasterAgent(object):
     @Inject("slaves:_MasterAgent__slaves")
