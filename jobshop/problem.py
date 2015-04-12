@@ -257,3 +257,12 @@ class Solution(object):
             machine_strings_list.append(machine_string + jobs_string)
         machine_strings_list = ["Completion time: " + str(self.get_completion_time())] + machine_strings_list
         return "\n".join(machine_strings_list)
+
+
+class JobUtil(object):
+    @staticmethod
+    def calculate_active_execution_time(job):
+        execution_time = 0
+        for task in job.get_tasks_list():
+            execution_time += task.get_duration()
+        return execution_time

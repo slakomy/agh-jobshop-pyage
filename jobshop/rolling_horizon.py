@@ -1,4 +1,5 @@
-import Queue as Q
+from Queue import PriorityQueue
+from problem import JobUtil
 
 
 class JobWindow(object):
@@ -10,15 +11,9 @@ class JobWindow(object):
     def add_job(self, job):
         if self.__total_active_execution_time > self.__predictive_time:
             raise Exception("Job window is already full")
-        self.__total_active_execution_time += self.__calculate_execution_time(job)
+        self.__total_active_execution_time += JobUtil.calculate_active_execution_time(job)
         self.__jobs.append(job)
         return self.is_full()
-
-    def __calculate_execution_time(self, job):
-        execution_time = 0
-        for task in job.get_tasks_list():
-            execution_time += task.get_duration()
-        return execution_time
 
     def is_full(self):
         return self.__total_active_execution_time > self.__predictive_time
@@ -29,7 +24,7 @@ class JobWindow(object):
 
 class JobBacklog(object):
     def __init__(self):
-        self.__jobs_priority_queue = Q.PriorityQueue()
+        self.__jobs_priority_queue = PriorityQueue()
 
     def add_problem(self, problem):
         for job in problem.jobs_list:

@@ -1,6 +1,7 @@
 from pyage.jobshop.genetic_classes import *
 from pyage.core.inject import Inject
 import logging
+from rolling_horizon import JobBacklog
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class MasterAgent(object):
         for agent in self.__slaves.values():
             agent.parent = self
         logger.debug("Slaves number: %d", len(self.__slaves.values()))
+        self.__backlog = JobBacklog()
         self.steps = 1
 
     def get_history(self):

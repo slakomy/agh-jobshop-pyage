@@ -1,4 +1,4 @@
-from problem import Job, Task, Problem
+from problem import Job, Task, Problem, JobUtil
 import random
 
 
@@ -99,6 +99,31 @@ class RandomizedProblemProvider(object):
         tasks = self.__tasks_provider.provide(job_duration=job_duration, tasks_number=tasks_number)
         new_job = Job(c_obj.get_next(), tasks)
         return new_job
+
+
+class DistortedProblemProvider(object):
+    def __init__(self, distortion_factor=0.1):
+        self.distortion_factor = distortion_factor
+
+    def generate_distorted_problem(self, problem):
+        problem_active_execution_time = 0
+        for job in problem.get_jobs_list():
+            problem_active_execution_time += JobUtil.calculate_active_execution_time(job)
+        expected_distortion_level = self.distortion_factor * problem_active_execution_time
+        distortion_level = 0
+        while distortion_level < expected_distortion_level:
+            job = self.__draw_random_job(problem)
+            task = self.__draw_random_task(task)
+            distortion_level += self.__distort_task(task)
+
+    def __draw_random_job(self, problem):
+        pass
+
+    def __draw_random_task(self, job):
+        pass
+
+    def __distort_task(self, task):
+        pass
 
 
 class RandomizedTasksProvider(object):
