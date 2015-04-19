@@ -247,7 +247,6 @@ class Solution(object):
             same_machine_tasks.sort(key=lambda t: t.duration)
             return same_machine_tasks[0]
 
-
     def __str__(self):
         machine_strings_list = []
         for m_nr in xrange(self.__machines_nr):

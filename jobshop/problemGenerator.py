@@ -107,23 +107,32 @@ class DistortedProblemProvider(object):
 
     def generate_distorted_problem(self, problem):
         problem_active_execution_time = 0
-        for job in problem.get_jobs_list():
+        distorted_job_list = problem.get_jobs_list()
+        for job in distorted_job_list:
             problem_active_execution_time += JobUtil.calculate_active_execution_time(job)
         expected_distortion_level = self.distortion_factor * problem_active_execution_time
         distortion_level = 0
         while distortion_level < expected_distortion_level:
-            job = self.__draw_random_job(problem)
-            task = self.__draw_random_task(task)
+            job = self.__draw_random_job(distorted_job_list)
+            task = self.__draw_random_task(job)
             distortion_level += self.__distort_task(task)
+        return Problem(distorted_job_list)
 
-    def __draw_random_job(self, problem):
-        pass
+    def __draw_random_job(self, jobs):
+        return jobs[random.randint(0, len(jobs)-1)]
 
     def __draw_random_task(self, job):
-        pass
+        tasks = job.get_tasks_list()
+        return tasks[random.randint(0, len(tasks)-1)]
 
     def __distort_task(self, task):
-        pass
+        distortion = int(round(task.duration * random.uniform(0, 2*self.distortion_factor)))
+        if random.randint(0, 1) == 0:
+            task.duration -= distortion
+        else:
+            task.duration += distortion
+        return distortion
+
 
 
 class RandomizedTasksProvider(object):
