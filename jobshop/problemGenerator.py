@@ -10,6 +10,8 @@ class Counter(object):
         self.counter += 1
         return self.counter - 1
 
+    def next(self):
+        return self.get_next()
 
 c_obj = Counter()
 

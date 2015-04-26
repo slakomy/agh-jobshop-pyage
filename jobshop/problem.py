@@ -265,3 +265,23 @@ class JobUtil(object):
         for task in job.get_tasks_list():
             execution_time += task.get_duration()
         return execution_time
+
+
+class TimeMatrixConverter(object):
+    def __init__(self, id_generator):
+        self.id_generator = id_generator
+
+    def matrix_to_problem(self, time_matrix):
+        jobs_list = []
+        for i in xrange(0, len(time_matrix)):
+            jobs_list.append(self.row_to_job(time_matrix[i]))
+        return Problem(jobs_list)
+
+    def row_to_job(self, task_times_list):
+        tasks_list = []
+        for i in xrange(0, len(task_times_list)):
+            tasks_list.append(Task(i, task_times_list[i]))
+        return Job(self.id_generator.next(), tasks_list)
+
+    def window_to_matrix(self, job_window):
+        return [[task.duration for task in job_window.get_jobs()[i].get_tasks_list()] for i in xrange(0, len(job_window.get_jobs()))]

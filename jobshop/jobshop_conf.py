@@ -6,6 +6,7 @@ from genetic_classes import *
 from pyage.core import address
 from pyage.jobshop.agents import masters_factory, slaves_factory
 from pyage.core.stop_condition import StepLimitStopCondition
+from pyage.jobshop.flowshop_genetics import FlowShopEvaluation
 from pyage.jobshop.problemGenerator import  ProblemGenerator, UniformIntDistribution, RandomizedTasksProvider, PredictedProblemGenerator, RandomizedProblemProvider
 from pyage.jobshop.statistics import  GanttStatistics
 from pyage.jobshop.timeKeeper import TimeKeeper
@@ -55,7 +56,8 @@ slaves = slaves_factory(jobshop_agents)
 
 stop_condition = lambda: StepLimitStopCondition(1000)
 
-evaluation = lambda: BasicJobShopEvaluation(machines_number)
+evaluation = lambda: FlowShopEvaluation(time_matrix())
+initializer = lambda: PermutationInitializer(JOBS_COUNT, POPULATION_SIZE)
 selection = lambda: BasicJobShopSelection()
 mutation = lambda: GreaterJobShopMutation()
 

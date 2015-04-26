@@ -1,116 +1,120 @@
+from pyage.jobshop.flowshop_genetics import FlowShopEvaluation
 from pyage.jobshop.genetic_classes import *
 from pyage.core.inject import Inject
 import logging
+from pyage.jobshop.problem import TimeMatrixConverter
+from pyage.jobshop.problemGenerator import Counter
+from pyage.jobshop.rolling_horizon import JobWindow
 from rolling_horizon import JobBacklog
 
 logger = logging.getLogger(__name__)
 
 
-class MasterAgent(object):
-    @Inject("slaves:_MasterAgent__slaves")
-    @Inject("problemGenerator:_MasterAgent__problemGenerator")
-    @Inject("predictedProblemGenerator:_MasterAgent__predictor")
-    @Inject("timeKeeper:_MasterAgent__timeKeeper")
-    @Inject("manufacture:_MasterAgent__manufacture")
-    def __init__(self, name=None):
-        self.name = name
-        super(MasterAgent, self).__init__()
-        for agent in self.__slaves.values():
-            agent.parent = self
-        logger.debug("Slaves number: %d", len(self.__slaves.values()))
-        self.__backlog = JobBacklog()
-        self.steps = 1
-
-    def get_history(self):
-        return self.__manufacture.get_history()
-
-    def step(self):
-        self.__timeKeeper.step()
-        if (not self.__manufacture.tasks_assigned()) and (self.__timeKeeper.get_time() == 0):
-            self.__manufacture.assign_tasks(self.get_solution(self.__timeKeeper.get_time()))
-            self.__assign_predicted_and_solution_part()
-        self.__manufacture.time_tick(self.__timeKeeper.get_time())
-        if self._MasterAgent__problemGenerator.check_new_problem(self.steps):
-            new_problem = self.__problemGenerator.step(self.steps)
-            logger.debug("New problem came: \n%s", new_problem)
-            failed_count = 0
-            for agent in self.__slaves.values():
-                if(self.steps == 1):
-                    agent.append_problem(new_problem, None)
-                else:
-                    if agent.check_predicated_problem(new_problem):
-                        logger.debug("Agent with good pred_problem")
-                        print "we're good"
-                        new_solution = agent.get_solution()
-                        print new_solution
-                        new_solution.adjustTasksWithTime(self.__timeKeeper.get_time())
-                        print "adjusted"
-                        print new_solution
-                        print self.__timeKeeper.get_time()
-                        #logger.debug("Pretty new solution\n %s",new_solution)
-                        self.__manufacture.assign_tasks(new_solution)
-                        self.__assign_predicted_and_solution_part()
-                        break
-                    else:
-                        failed_count += 1
-            if failed_count == len(self.__slaves.values()):
-                print "WHOOOPS"
-                print new_problem
-                flag = False
-                for agent in self.__slaves.values():
-                    if agent.is_prediction_acceptable(new_problem):
-                        print agent.predicted_problem
-                        print "ADJUSTING!!!!"
-                        print new_problem
-                        new_solution = agent.get_solution()
-                        new_solution.adjustSolutionToSubProblem(new_problem,agent.predicted_problem)
-                        new_solution.adjustTasksWithTime(self.__timeKeeper.get_time())
-                        #logger.debug("Pretty new solution\n %s",new_solution)
-                        self.__manufacture.assign_tasks(new_solution)
-                        self.__assign_predicted_and_solution_part()
-                        flag = True
-                        break
-                if not flag:
-                    print "no prediction worked, assign however"
-                    solution = BasicJobShopEvaluation(self.__manufacture.machines_nr).schedule(JobShopGenotype(new_problem).genes)
-                    solution.adjustTasksWithTime(self.__timeKeeper.get_time()+1) #+1 due to starting -1?
-                    print "lets see"
-                    print new_problem
-                    print solution
-                    self.__manufacture.assign_tasks(solution)
-                    self.__assign_predicted_and_solution_part()
-        for agent in self.__slaves.values():
-            agent.step()
-        self.steps += 1
-
-    def __get_predicted_and_solution_problems(self, solution_part_problem):
-        predicted = self.__predictor.get_predicted_problems()
-        merged_problems  = {}
-        for pred in predicted:
-            merged_problems[solution_part_problem.merge_with(pred)]=pred
-        return merged_problems
-
-    def __assign_predicted_and_solution_part(self):
-        solution_part_problem = self.__manufacture.get_solution_part_as_problem(2)
-        merged_problems = self.__get_predicted_and_solution_problems(solution_part_problem)
-        if len(self.__slaves) != len(merged_problems):
-            raise Exception("Not equal: agents and predicted problems")
-        for it in xrange(len(self.__slaves)):
-            merged_problem = merged_problems.keys()[it]
-            self.__slaves.values()[it].append_problem(merged_problem, merged_problems[merged_problem])
-    def get_agents(self):
-        return self.__slaves.values()
-
-    def get_fitness(self):
-        min_fitness_agent = min(self.__slaves.values(), key=lambda x: x.get_fitness)
-        logger.debug("Taken fitness is %d\n", min_fitness_agent.get_fitness())
-        return min_fitness_agent.get_fitness()
-
-    def get_solution(self, time):
-        min_fitness_agent = min(self.__slaves.values(), key=lambda x: x.get_fitness)
-        solution = min_fitness_agent.get_solution()
-        solution.adjustTasksWithTime(time)
-        return solution
+# class MasterAgent(object):
+#     @Inject("slaves:_MasterAgent__slaves")
+#     @Inject("problemGenerator:_MasterAgent__problemGenerator")
+#     @Inject("predictedProblemGenerator:_MasterAgent__predictor")
+#     @Inject("timeKeeper:_MasterAgent__timeKeeper")
+#     @Inject("manufacture:_MasterAgent__manufacture")
+#     def __init__(self, name=None):
+#         self.name = name
+#         super(MasterAgent, self).__init__()
+#         for agent in self.__slaves.values():
+#             agent.parent = self
+#         logger.debug("Slaves number: %d", len(self.__slaves.values()))
+#         self.__backlog = JobBacklog()
+#         self.steps = 1
+#
+#     def get_history(self):
+#         return self.__manufacture.get_history()
+#
+#     def step(self):
+#         self.__timeKeeper.step()
+#         if (not self.__manufacture.tasks_assigned()) and (self.__timeKeeper.get_time() == 0):
+#             self.__manufacture.assign_tasks(self.get_solution(self.__timeKeeper.get_time()))
+#             self.__assign_predicted_and_solution_part()
+#         self.__manufacture.time_tick(self.__timeKeeper.get_time())
+#         if self._MasterAgent__problemGenerator.check_new_problem(self.steps):
+#             new_problem = self.__problemGenerator.step(self.steps)
+#             logger.debug("New problem came: \n%s", new_problem)
+#             failed_count = 0
+#             for agent in self.__slaves.values():
+#                 if(self.steps == 1):
+#                     agent.append_problem(new_problem, None)
+#                 else:
+#                     if agent.check_predicated_problem(new_problem):
+#                         logger.debug("Agent with good pred_problem")
+#                         print "we're good"
+#                         new_solution = agent.get_solution()
+#                         print new_solution
+#                         new_solution.adjustTasksWithTime(self.__timeKeeper.get_time())
+#                         print "adjusted"
+#                         print new_solution
+#                         print self.__timeKeeper.get_time()
+#                         #logger.debug("Pretty new solution\n %s",new_solution)
+#                         self.__manufacture.assign_tasks(new_solution)
+#                         self.__assign_predicted_and_solution_part()
+#                         break
+#                     else:
+#                         failed_count += 1
+#             if failed_count == len(self.__slaves.values()):
+#                 print "WHOOOPS"
+#                 print new_problem
+#                 flag = False
+#                 for agent in self.__slaves.values():
+#                     if agent.is_prediction_acceptable(new_problem):
+#                         print agent.predicted_problem
+#                         print "ADJUSTING!!!!"
+#                         print new_problem
+#                         new_solution = agent.get_solution()
+#                         new_solution.adjustSolutionToSubProblem(new_problem,agent.predicted_problem)
+#                         new_solution.adjustTasksWithTime(self.__timeKeeper.get_time())
+#                         #logger.debug("Pretty new solution\n %s",new_solution)
+#                         self.__manufacture.assign_tasks(new_solution)
+#                         self.__assign_predicted_and_solution_part()
+#                         flag = True
+#                         break
+#                 if not flag:
+#                     print "no prediction worked, assign however"
+#                     solution = BasicJobShopEvaluation(self.__manufacture.machines_nr).schedule(JobShopGenotype(new_problem).genes)
+#                     solution.adjustTasksWithTime(self.__timeKeeper.get_time()+1) #+1 due to starting -1?
+#                     print "lets see"
+#                     print new_problem
+#                     print solution
+#                     self.__manufacture.assign_tasks(solution)
+#                     self.__assign_predicted_and_solution_part()
+#         for agent in self.__slaves.values():
+#             agent.step()
+#         self.steps += 1
+#
+#     def __get_predicted_and_solution_problems(self, solution_part_problem):
+#         predicted = self.__predictor.get_predicted_problems()
+#         merged_problems  = {}
+#         for pred in predicted:
+#             merged_problems[solution_part_problem.merge_with(pred)]=pred
+#         return merged_problems
+#
+#     def __assign_predicted_and_solution_part(self):
+#         solution_part_problem = self.__manufacture.get_solution_part_as_problem(2)
+#         merged_problems = self.__get_predicted_and_solution_problems(solution_part_problem)
+#         if len(self.__slaves) != len(merged_problems):
+#             raise Exception("Not equal: agents and predicted problems")
+#         for it in xrange(len(self.__slaves)):
+#             merged_problem = merged_problems.keys()[it]
+#             self.__slaves.values()[it].append_problem(merged_problem, merged_problems[merged_problem])
+#     def get_agents(self):
+#         return self.__slaves.values()
+#
+#     def get_fitness(self):
+#         min_fitness_agent = min(self.__slaves.values(), key=lambda x: x.get_fitness)
+#         logger.debug("Taken fitness is %d\n", min_fitness_agent.get_fitness())
+#         return min_fitness_agent.get_fitness()
+#
+#     def get_solution(self, time):
+#         min_fitness_agent = min(self.__slaves.values(), key=lambda x: x.get_fitness)
+#         solution = min_fitness_agent.get_solution()
+#         solution.adjustTasksWithTime(time)
+#         return solution
 
 class SlaveAgent(object):
     @Inject("mutation:_SlaveAgent__mutation")
@@ -161,6 +165,45 @@ class SlaveAgent(object):
             return True
 
 
+class MasterAgent(object):
+    @Inject("slaves:_MasterAgent__slaves")
+    @Inject("manufacture:_MasterAgent__manufacture")
+    @Inject("timeKeeper:_MasterAgent__timeKeeper")
+    def __init__(self, time_matrix, window_time):
+        self.__current_time_matrix = time_matrix
+        self.__window_time = window_time
+        self.__backlog = JobBacklog()
+        self.__converter = TimeMatrixConverter(Counter())
+        initial_problem = self.__converter.matrix_to_problem(time_matrix)
+        self.__backlog.add_problem(initial_problem)
+        initial_job_window = self.next_job_window()
+
+        self.__solve(self.__converter.window_to_matrix(initial_job_window))
+
+    def next_job_window(self):
+        job_window = JobWindow(self.__window_time)
+        while not job_window.is_full() and not self.__backlog.is_empty():
+            job_window.add_job(self.__backlog.pop_top_priority_job())
+        return job_window
+
+    def __solve(self, time_matrix):
+        slave = self.__slaves.values()[0]
+        #TODO: this is based on flowshop_classi_conf, make it more general
+        slave.operators[2].time_matrix = time_matrix
+
+        for _ in xrange(0, 100):
+            slave.step()
+        permutation = slave.get_best_genotype().permutation
+        makespan, result_matrix = result_matrix = FlowShopEvaluation(time_matrix).compute_makespan(permutation, True)
+        #TODO: convert matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
+
+    def step(self):
+        self.__timeKeeper.step()
+        for slave in self.__slaves.values():
+            slave.step()
+
+    def get_history(self):
+        return self.__manufacture.get_history()
 
 def masters_factory(count):
     return _agents_factory(count, MasterAgent)
