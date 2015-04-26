@@ -6,7 +6,7 @@ from pyage.core.agent.agent import generate_agents, Agent
 from pyage.core.locator import RandomLocator
 from pyage.core.migration import NoMigration
 from pyage.core.stop_condition import StepLimitStopCondition
-from pyage.jobshop.agents import masters_factory
+from pyage.jobshop.agents import masters_factory, MasterAgent
 from pyage.jobshop.flowshop_genetics import FirstHalfSwapsCrossover
 from pyage.jobshop.flowshop_genetics import FlowShopEvaluation
 from pyage.jobshop.flowshop_genetics import PermutationInitializer
@@ -27,14 +27,16 @@ time_matrix = lambda: [
 JOBS_COUNT = len(time_matrix()[0])
 AGENTS_COUNT = 1
 POPULATION_SIZE = 20
+WINDOW_TIME = 1000
 machines_number = len(time_matrix())
 
-timeKeeper = lambda: TimeKeeper(5, -1)
+timeKeeper = lambda: TimeKeeper(5, 1)
 manufacture = lambda: Manufacture(machines_number)
-stop_condition = lambda: StepLimitStopCondition(1000)
+stop_condition = lambda: StepLimitStopCondition(10000)
 
 slaves = generate_agents("flowshop", AGENTS_COUNT, Agent)
-agents = masters_factory(1)
+agents = masters_factory(AGENTS_COUNT, WINDOW_TIME, time_matrix())
+
 
 evaluation = lambda: FlowShopEvaluation(time_matrix())
 initializer = lambda: PermutationInitializer(JOBS_COUNT, POPULATION_SIZE)

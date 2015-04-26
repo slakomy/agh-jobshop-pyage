@@ -3,7 +3,7 @@ from pyage.jobshop.genetic_classes import *
 from pyage.core.inject import Inject
 import logging
 from pyage.jobshop.problem import TimeMatrixConverter
-from pyage.jobshop.problemGenerator import Counter
+from pyage.jobshop.problemGenerator import Counter, DistortedProblemProvider
 from pyage.jobshop.rolling_horizon import JobWindow
 from rolling_horizon import JobBacklog
 
@@ -173,12 +173,14 @@ class MasterAgent(object):
         self.__current_time_matrix = time_matrix
         self.__window_time = window_time
         self.__backlog = JobBacklog()
+        self.__problem_provider = DistortedProblemProvider()
         self.__converter = TimeMatrixConverter(Counter())
-        initial_problem = self.__converter.matrix_to_problem(time_matrix)
-        self.__backlog.add_problem(initial_problem)
+        self.__initial_problem = self.__converter.matrix_to_problem(time_matrix)
+        self.__backlog.add_problem(self.__initial_problem)
         initial_job_window = self.next_job_window()
 
         self.__solve(self.__converter.window_to_matrix(initial_job_window))
+        self.__open_new_window()
 
     def next_job_window(self):
         job_window = JobWindow(self.__window_time)
@@ -188,8 +190,10 @@ class MasterAgent(object):
 
     def __solve(self, time_matrix):
         slave = self.__slaves.values()[0]
-        #TODO: this is based on flowshop_classi_conf, make it more general
+        #TODO: this is based on flowshop_classi_conf, make it more general(operators can have different order)
         slave.operators[2].time_matrix = time_matrix
+        slave.operators[2].JOBS_COUNT = len(time_matrix[0]) + 1
+        slave.operators[2].PROCESSORS_COUNT = len(time_matrix) + 1
 
         for _ in xrange(0, 100):
             slave.step()
@@ -197,16 +201,43 @@ class MasterAgent(object):
         makespan, result_matrix = result_matrix = FlowShopEvaluation(time_matrix).compute_makespan(permutation, True)
         #TODO: convert matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
 
+    #assuming we have only one slave
     def step(self):
+        slave = self.__slaves.values()[0]
         self.__timeKeeper.step()
-        for slave in self.__slaves.values():
-            slave.step()
+        slave.step()
+        if self.__timeKeeper.__time % self.__window_time == 0:
+            self.__open_new_window()
+            permutation = slave.get_best_genotype().permutation
+            makespan, result_matrix = result_matrix = FlowShopEvaluation(self.__current_time_matrix).compute_makespan(permutation, True)
+            #TODO: convert result_matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
+            #remember to add to each time in matrix current time from timeKeeper, because solution is made assuming that each window starts on time=0
+            self.__timeKeeper.__time += 1 #temporary workaround because one time unit consists of more than one step and we would open new window several times in a row
+
+    def __open_new_window(self):
+        new_problem = self.__problem_provider.generate_distorted_problem(self.__initial_problem)
+        self.__backlog.add_problem(new_problem)
+        job_window = self.next_job_window()
+        time_matrix = self.__converter.window_to_matrix(job_window)
+        self.__current_time_matrix = time_matrix
+        #TODO: this is based on flowshop_classi_conf, make it more general(operators can have different order)
+        slave = self.__slaves.values()[0].operators[2].time_matrix = time_matrix #now slave evaluates schedule accordingly to new job_window
 
     def get_history(self):
         return self.__manufacture.get_history()
 
-def masters_factory(count):
-    return _agents_factory(count, MasterAgent)
+
+# def masters_factory(count):
+#     return _agents_factory(count, MasterAgent)
+
+def masters_factory(count, job_window_time, time_matrix):
+    def factory():
+        agents = {}
+        for i in xrange(count):
+            agent = MasterAgent(time_matrix, job_window_time)
+            agents["Master_" + str(i)] = agent
+        return agents
+    return factory
 
 def slaves_factory(count):
     return _agents_factory(count, SlaveAgent)
