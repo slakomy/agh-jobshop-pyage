@@ -21,6 +21,10 @@ class JobWindow(object):
     def get_jobs(self):
         return list(self.__jobs)
 
+    def __str__(self):
+        return "JobWindow [predictive_time=" + str(self.__predictive_time) + ", total_active_execution_time=" + \
+               str(self.__total_active_execution_time) + ", jobs=" + str(self.__jobs) + "]"
+
 
 class JobBacklog(object):
     def __init__(self):

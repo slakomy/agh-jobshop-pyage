@@ -47,8 +47,8 @@ class Agent(Addressable, AbstractAgent):
         logger.debug("%s %s %s", self.steps, self.address, self.get_fitness())
         for o in self.operators:
             o.process(self.population)
-        self.__send_genotype()
-        self.__migrate()
+        # self.__send_genotype()
+        # self.__migrate()
 
     def __send_genotype(self):
         if random.random() < 0.05:

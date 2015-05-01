@@ -136,7 +136,6 @@ class DistortedProblemProvider(object):
         return distortion
 
 
-
 class RandomizedTasksProvider(object):
     def __init__(self, machines_number):
         self.__machines_nr = machines_number

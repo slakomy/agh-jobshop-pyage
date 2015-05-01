@@ -6,6 +6,7 @@ from pyage.core.inject import Inject
 
 logger = logging.getLogger(__name__)
 
+
 class Migration(object):
     def migrate(self, agent):
         raise NotImplementedError()
@@ -13,7 +14,7 @@ class Migration(object):
 
 class Pyro4Migration(Migration):
     @Inject("ns_hostname")
-    def __init__(self, probability = 0.05):
+    def __init__(self, probability=0.05):
         super(Pyro4Migration, self).__init__()
         self.probability = probability
 
@@ -41,7 +42,7 @@ class ParentMigration(Migration):
     def migrate(self, agent):
         try:
             if random.random() > 0.95 and len(agent.parent.get_agents()) > 1 and len(
-                agent.parent.parent.get_agents()) > 1:
+                    agent.parent.parent.get_agents()) > 1:
                 logger.debug("migrating!")
                 aggregate = self.__get_random_aggregate(agent)
                 logger.debug(aggregate.get_address())
