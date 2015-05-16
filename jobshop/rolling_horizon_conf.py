@@ -32,7 +32,7 @@ time_matrix = lambda: [
     [16, 15, 13, 11, 10]
 ]
 JOBS_COUNT = len(time_matrix()[0])
-AGENTS_COUNT = 1
+AGENTS_COUNT = 5
 POPULATION_SIZE = 20
 WINDOW_TIME = 250
 machines_number = len(time_matrix())
