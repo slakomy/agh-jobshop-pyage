@@ -9,23 +9,28 @@ from rolling_horizon import JobBacklog
 
 logger = logging.getLogger(__name__)
 
+
 class MasterAgent(object):
     @Inject("slaves:_MasterAgent__slaves")
     @Inject("manufacture:_MasterAgent__manufacture")
     @Inject("timeKeeper:_MasterAgent__timeKeeper")
-    def __init__(self, time_matrix, window_time):
+    def __init__(self, time_matrix, window_time, steps_for_initial_window=100):
         self.__current_time_matrix = time_matrix
         self.__window_time = window_time
+        self.__steps_for_initial_window = steps_for_initial_window
         self.__backlog = JobBacklog()
         self.__problem_provider = DistortedProblemProvider()
         self.__converter = TimeMatrixConverter(Counter())
         self.__initial_problem = self.__converter.matrix_to_problem(time_matrix)
-        logger.debug("Initial problem=%s", str(self.__initial_problem))
+        self.__solve_initial_problem()
+        self.__open_new_window()
+
+    def __solve_initial_problem(self):
+        logger.debug("Initial problem %s", str(self.__initial_problem))
         self.__backlog.add_problem(self.__initial_problem)
         initial_job_window = self.next_job_window()
-        logger.debug("Initial job window=%s", initial_job_window)
+        logger.debug("About to solve initial job window %s", initial_job_window)
         self.__solve(self.__converter.window_to_matrix(initial_job_window))
-        self.__open_new_window()
 
     def next_job_window(self):
         job_window = JobWindow(self.__window_time)
@@ -53,25 +58,34 @@ class MasterAgent(object):
         self.__timeKeeper.step()
         for slave in self.__slaves.values():
             slave.step()
-        if self.__timeKeeper.get_time() % self.__window_time == 0:
-            incoming_problem = self.__problem_provider.generate_distorted_problem(self.__initial_problem)
-            logger.debug("Incoming problem: %s", incoming_problem)
-            self.__backlog.add_problem(incoming_problem)
-            job_window = self.next_job_window()
-            logger.debug("New job window generated: %s", job_window)
-            time_matrix = self.__converter.window_to_matrix(job_window)
-            self.__current_time_matrix = time_matrix
-            makespan, result_matrix = self.get_best_solution()
-            logger.debug("Job window solution found. Makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
-            #TODO: convert result_matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
-            logger.debug("Opening new window")
+        if self.window_ended():
+            self.__accept_new_problem()
+            self.__close_current_window()
             self.__open_new_window()
             #remember to add to each time in matrix current time from timeKeeper, because solution is made assuming that each window starts on time=0
             self.__timeKeeper.increment() #temporary workaround because one time unit consists of more than one step and we would open new window several times in a row
 
+    def window_ended(self):
+        return self.__timeKeeper.get_time() % self.__window_time == 0
+
+    def __accept_new_problem(self):
+        incoming_problem = self.__problem_provider.generate_distorted_problem(self.__initial_problem)
+        logger.debug("Accepting new problem: %s", incoming_problem)
+        self.__backlog.add_problem(incoming_problem)
+        job_window = self.next_job_window()
+        logger.debug("New job window generated: %s", job_window)
+        time_matrix = self.__converter.window_to_matrix(job_window)
+        self.__current_time_matrix = time_matrix
+
+    def __close_current_window(self):
+        makespan, result_matrix = self.get_best_solution()
+        logger.debug("Job window solution found. Makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
+        # TODO: convert result_matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
+
     def get_best_solution(self):
         best_makespan = None
         best_result_matrix = None
+        logger.debug("Searching for best solution for time_matrix %s", self.__current_time_matrix)
         for slave in self.__slaves.values():
             permutation = slave.get_best_genotype().permutation
             makespan, result_matrix = FlowShopEvaluation(self.__current_time_matrix).compute_makespan(permutation, True)
@@ -83,6 +97,7 @@ class MasterAgent(object):
         return best_makespan, best_result_matrix
 
     def __open_new_window(self):
+        logger.debug("Opening new window")
         backlog_jobs = copy.copy(self.__backlog._jobs_priority_queue.queue)
         for slave in self.__slaves.values():
             self.__assign_predicted_problem(slave)
