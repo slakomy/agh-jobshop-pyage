@@ -1,5 +1,5 @@
 from pyage.jobshop.flowshop_genetics import FlowShopEvaluation
-from pyage.jobshop.genetic_classes import *
+import copy
 from pyage.core.inject import Inject
 import logging
 from pyage.jobshop.problem import TimeMatrixConverter
@@ -54,6 +54,13 @@ class MasterAgent(object):
         for slave in self.__slaves.values():
             slave.step()
         if self.__timeKeeper.get_time() % self.__window_time == 0:
+            incoming_problem = self.__problem_provider.generate_distorted_problem(self.__initial_problem)
+            logger.debug("Incoming problem: %s", incoming_problem)
+            self.__backlog.add_problem(incoming_problem)
+            job_window = self.next_job_window()
+            logger.debug("New job window generated: %s", job_window)
+            time_matrix = self.__converter.window_to_matrix(job_window)
+            self.__current_time_matrix = time_matrix
             makespan, result_matrix = self.get_best_solution()
             logger.debug("Job window solution found. Makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
             #TODO: convert result_matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
@@ -76,27 +83,32 @@ class MasterAgent(object):
         return best_makespan, best_result_matrix
 
     def __open_new_window(self):
-        new_problem = self.__problem_provider.generate_distorted_problem(self.__initial_problem)
-        logger.debug("New problem generated: %s", new_problem)
-        self.__backlog.add_problem(new_problem)
-        logger.debug("Generating new job window")
-        job_window = self.next_job_window()
-        logger.debug("New job window generated: %s", job_window)
-        time_matrix = self.__converter.window_to_matrix(job_window)
-        self.__current_time_matrix = time_matrix
-        logger.debug("Time matrix for new job window: %s", str(time_matrix))
-        self.reset_slaves(job_window, time_matrix)
-
-    def reset_slaves(self, job_window, time_matrix):
-        #TODO: this is based on flowshop_classi_conf, make it more general(operators can have different order)
+        backlog_jobs = copy.copy(self.__backlog._jobs_priority_queue.queue)
         for slave in self.__slaves.values():
-            slave.operators[2].time_matrix = time_matrix  # now slave evaluates schedule accordingly to new job_window
-            slave.initializer.permutation_length = len(job_window.get_jobs())
-            slave.population = []
-            slave.initialize()
+            self.__assign_predicted_problem(slave)
+            self.__backlog._jobs_priority_queue.queue = backlog_jobs
+
+    def reset_slave(self, slave, jobs_in_window, time_matrix):
+        #TODO: this is based on flowshop_classi_conf, make it more general(operators can have different order)
+        slave.operators[2].time_matrix = time_matrix  # now slave evaluates schedule accordingly to new job_window
+        slave.initializer.permutation_length = jobs_in_window
+        slave.population = []
+        slave.initialize()
 
     def get_history(self):
         return self.__manufacture.get_history()
+
+    def __assign_predicted_problem(self, slave):
+        predicted_problem = self.__problem_provider.generate_distorted_problem(self.__initial_problem)
+        logger.debug("New predicted problem generated: %s", predicted_problem)
+        self.__backlog.add_problem(predicted_problem)
+        logger.debug("Generating predicted job window")
+        job_window = self.next_job_window()
+        logger.debug("Predicted job window generated: %s", job_window)
+        time_matrix = self.__converter.window_to_matrix(job_window)
+        # self.__current_time_matrix = time_matrix
+        logger.debug("Time matrix for predicted job window: %s", str(time_matrix))
+        self.reset_slave(slave, len(job_window.get_jobs()), time_matrix)
 
 
 def masters_factory(count, job_window_time, time_matrix):
