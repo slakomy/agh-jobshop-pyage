@@ -197,8 +197,7 @@ class FlowShopEvaluation(Operator):
         completion_times = self._initialize_including_sentinels()
         for pi in xrange(1, self.PROCESSORS_COUNT):
             for ji in xrange(1, self.JOBS_COUNT):
-                completion_times[pi][ji] = self.time_matrix[pi - 1][permutation[ji - 1]] \
-                                           + max(completion_times[pi][ji - 1], completion_times[pi - 1][ji])
+                completion_times[pi][ji] = self.time_matrix[pi - 1][permutation[ji - 1]] + max(completion_times[pi][ji - 1], completion_times[pi - 1][ji])
         completion_times = self._strip_sentinels(completion_times)
         return completion_times
 

@@ -44,7 +44,6 @@ stop_condition = lambda: StepLimitStopCondition(1000)
 slaves = generate_agents("flowshop", AGENTS_COUNT, Agent)
 agents = masters_factory(AGENTS_COUNT, WINDOW_TIME, time_matrix())
 
-
 evaluation = lambda: FlowShopEvaluation(time_matrix())
 initializer = lambda: PermutationInitializer(JOBS_COUNT, POPULATION_SIZE)
 operators = lambda: [

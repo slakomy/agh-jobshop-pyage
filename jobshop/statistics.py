@@ -1,6 +1,6 @@
 import logging
 from pyage.core.statistics import Statistics
-from pyage.jobshop.gantt_generator import GanttGenerator
+from gantt_generator import GanttGenerator
 
 logger = logging.getLogger(__name__)
 

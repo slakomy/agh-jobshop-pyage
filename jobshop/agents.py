@@ -1,10 +1,10 @@
-from pyage.jobshop.flowshop_genetics import FlowShopEvaluation
+from flowshop_genetics import FlowShopEvaluation
 import copy
 from pyage.core.inject import Inject
 import logging
-from pyage.jobshop.problem import TimeMatrixConverter
-from pyage.jobshop.problemGenerator import Counter, DistortedProblemProvider
-from pyage.jobshop.rolling_horizon import JobWindow
+from problem import TimeMatrixConverter
+from problemGenerator import Counter, DistortedProblemProvider
+from rolling_horizon import JobWindow
 from rolling_horizon import JobBacklog
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ class MasterAgent(object):
         self.__backlog.add_problem(self.__initial_problem)
         initial_job_window = self.next_job_window()
         logger.debug("About to solve initial job window %s", initial_job_window)
+        self.reset_slave(self.__slaves.values()[0], len(initial_job_window.get_jobs()), self.__converter.window_to_matrix(initial_job_window))
         self.__solve(self.__converter.window_to_matrix(initial_job_window))
 
     def next_job_window(self):
@@ -45,13 +46,14 @@ class MasterAgent(object):
             slave.operators[2].JOBS_COUNT = len(time_matrix[0]) + 1
             slave.operators[2].PROCESSORS_COUNT = len(time_matrix) + 1
 
-        logger.debug("About to solve time_matrix=%s", str(time_matrix))
+        logger.info("About to solve time_matrix=%s", str(time_matrix))
         slave = self.__slaves.values()[0]
         for _ in xrange(0, 100):
             slave.step()
         permutation = slave.get_best_genotype().permutation
         makespan, result_matrix = result_matrix = FlowShopEvaluation(time_matrix).compute_makespan(permutation, True)
         logger.debug("Solution for initial job window found. Makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
+        print "makespan=" + str(makespan) + " result_matrix=" + str(result_matrix)
         #TODO: convert matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
 
     def step(self):
@@ -80,6 +82,7 @@ class MasterAgent(object):
     def __close_current_window(self):
         makespan, result_matrix = self.get_best_solution()
         logger.debug("Job window solution found. Makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
+        print "makespan=" + str(makespan) + " result_matrix=" + str(result_matrix)
         # TODO: convert result_matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
 
     def get_best_solution(self):
