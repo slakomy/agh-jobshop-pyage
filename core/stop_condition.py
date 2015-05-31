@@ -17,6 +17,23 @@ class StepLimitStopCondition(StopCondition):
         return 0 < self.step_limit <= workplace.steps
 
 
+class AllJobsScheduledStopCondition(StopCondition):
+    def __init__(self):
+        self.__all_jobs_scheduled = False
+
+    def should_stop(self, workplace):
+        return self.__all_jobs_scheduled
+
+    def set_all_jobs_scheduled(self, value):
+        self.__all_jobs_scheduled = value
+
+
+all_jobs_scheduled_stop_condition = AllJobsScheduledStopCondition()
+
+def get_all_jobs_scheduled_stop_condition():
+    return all_jobs_scheduled_stop_condition
+
+
 class MinimumFitnessStopCondition(StopCondition):
     def __init__(self, minimal_fitness):
         super(MinimumFitnessStopCondition, self).__init__()

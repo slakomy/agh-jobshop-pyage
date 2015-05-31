@@ -1,8 +1,10 @@
 repeats = 3
 
-window_time=150
-numbers_of_aggregates = [20]
+number_of_problem_deliveries=3
+window_time=100
+numbers_of_aggregates = [3]
 aggregate_sizes = [20, 50]
+distortion_factor=0.1
 
 memetic_stages = [0]
 

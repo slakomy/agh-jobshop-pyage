@@ -18,6 +18,9 @@ class JobWindow(object):
     def is_full(self):
         return self.__total_active_execution_time > self.__predictive_time
 
+    def is_empty(self):
+        return self.__total_active_execution_time == 0
+
     def get_jobs(self):
         return list(self.__jobs)
 
