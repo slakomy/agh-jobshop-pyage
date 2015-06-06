@@ -27,14 +27,16 @@ def get_all_jobs_scheduled_stop_condition():
 
 def main():
     for number_of_aggregates in l_conf.numbers_of_aggregates:
+        global all_jobs_scheduled_stop_condition
         all_jobs_scheduled_stop_condition = AllJobsScheduledStopCondition()
         for aggregate_size in l_conf.aggregate_sizes:
             for obj in l_conf.matrices:
-                msg = "agents: {0}, population_size: {1}".format(number_of_aggregates,
-                    aggregate_size)
-                print msg
-                logger.info(msg)
-                lunch_computation(number_of_aggregates, aggregate_size, obj)
+                for i in xrange(l_conf.repeats):
+                    msg = "agents: {0}, population_size: {1}".format(number_of_aggregates,
+                        aggregate_size)
+                    print msg
+                    logger.info(msg)
+                    lunch_computation(number_of_aggregates, aggregate_size, obj)
 
 
 def create_base_params():
@@ -89,6 +91,6 @@ def lunch_computation(agents_count, agent_population, obj):
 
 
 if __name__ == "__main__":
-    level = logging.INFO
+    level = logging.WARN
     logging.basicConfig(level=level)
     main()

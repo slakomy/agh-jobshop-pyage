@@ -25,6 +25,7 @@ class MasterAgent(object):
         self.__delivered = 0
         self.__summary_makespan = 0
         self.__windows_calculated = 0
+        self.__stop_condition.set_all_jobs_scheduled(False)
         self.__backlog = JobBacklog()
         self.__problem_provider = DistortedProblemProvider(distortion_factor)
         self.__converter = TimeMatrixConverter(Counter())
@@ -56,7 +57,7 @@ class MasterAgent(object):
         self.__summary_makespan += makespan
         self.__windows_calculated += 1
         logger.info("Solution for initial job window found. Makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
-        print "makespan=" + str(makespan) + " result_matrix=" + str(result_matrix)
+        #print "makespan=" + str(makespan) + " result_matrix=" + str(result_matrix)
         #TODO: convert matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
 
     def step(self):
@@ -80,16 +81,18 @@ class MasterAgent(object):
             self.__backlog.add_problem(incoming_problem)
             self.__delivered += 1
         job_window = self.next_job_window()
-        logger.debug("New job window generated: %s", job_window)
-        if not job_window.is_empty():
-            time_matrix = self.__converter.window_to_matrix(job_window)
-            self.__current_time_matrix = time_matrix
-        else:
+        logger.info("New job window generated: %s", job_window)
+        if job_window.is_empty():
             self.__stop_condition.set_all_jobs_scheduled(True)
             print "{0}\t{1}\t{2}\t{3}".format(self.__window_time, len(self.__slaves), self.__windows_calculated, self.__summary_makespan)
+        else:
+            time_matrix = self.__converter.window_to_matrix(job_window)
+            self.__current_time_matrix = time_matrix
+
 
     def __close_current_window(self):
         makespan, result_matrix = self.get_best_solution()
+        self.__timeKeeper
         self.__summary_makespan += makespan
         self.__windows_calculated += 1
         logger.info("Job window solution found. Makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
@@ -115,12 +118,16 @@ class MasterAgent(object):
     def __open_new_window(self):
         logger.info("Opening new window")
         backlog_jobs = copy.copy(self.__backlog._jobs_priority_queue.queue)
-        if not self.__backlog.is_empty() and not self.all_delivered():
+        if not self.__backlog.is_empty() or not self.all_delivered():
             for slave in self.__slaves.values():
                 self.__assign_predicted_problem(slave)
                 self.__backlog._jobs_priority_queue.queue = backlog_jobs
+        else:
+            self.__stop_condition.set_all_jobs_scheduled(True)
+            print "{0}\t{1}\t{2}\t{3}".format(self.__window_time, len(self.__slaves), self.__windows_calculated, self.__summary_makespan)
 
     def reset_slave(self, slave, jobs_in_window, time_matrix):
+        logger.debug("reseting slave")
         #TODO: this is based on flowshop_classi_conf, make it more general(operators can have different order)
         slave.operators[2].time_matrix = time_matrix  # now slave evaluates schedule accordingly to new job_window
         slave.operators[2].JOBS_COUNT = len(time_matrix[0]) + 1
@@ -133,7 +140,7 @@ class MasterAgent(object):
         return self.__manufacture.get_history()
 
     def __assign_predicted_problem(self, slave):
-        if not not self.all_delivered():
+        if not self.all_delivered():
             predicted_problem = self.__problem_provider.generate_distorted_problem(self.__initial_problem, self.__timeKeeper.get_time() + self.__window_time)
             logger.debug("New predicted problem generated: %s", predicted_problem)
             self.__backlog.add_problem(predicted_problem)

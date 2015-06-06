@@ -1,10 +1,10 @@
-repeats = 3
+repeats = 1
 
-number_of_problem_deliveries=3
-window_time=100
-numbers_of_aggregates = [3]
-aggregate_sizes = [20, 50]
-distortion_factor=0.1
+number_of_problem_deliveries=1
+window_time=250
+numbers_of_aggregates = [2, 4, 6, 8, 10]
+aggregate_sizes = [10]
+distortion_factor=0.3
 
 memetic_stages = [0]
 
@@ -14,10 +14,10 @@ matrices = [
     {
         "milestones": [1300, 1290],
         "matrix": [
-            [10, 15, 20, 9, 9],
-            [30, 9, 11, 5, 6],
-            [12, 13, 14, 15, 16],
-            [16, 15, 13, 11, 10]
+            [10, 15, 20, 9, 9, 16, 5],
+            [30, 9, 11, 5, 6, 30, 4],
+            [12, 13, 14, 15, 16, 16, 5],
+            [16, 15, 13, 11, 10, 9, 11]
             # [54, 83, 15, 71, 77, 36, 53, 38, 27, 87, 76, 91, 14, 29, 12, 77, 32, 87, 68, 94],
             # [79, 3, 11, 99, 56, 70, 99, 60, 5, 56, 3, 61, 73, 75, 47, 14, 21, 86, 5, 77],
             # [16, 89, 49, 15, 89, 45, 60, 23, 57, 64, 7, 1, 63, 41, 63, 47, 26, 75, 77, 40],
