@@ -1,7 +1,5 @@
 import copy
 import logging
-from pyage.jobshop.flowshop_genetics import FlowShopEvaluation
-from problemGenerator import Counter
 
 logger = logging.getLogger(__name__)
 
@@ -295,45 +293,3 @@ class TimeMatrixConverter(object):
                 task_number += 1
         return time_matrix
         #return [[task.duration for task in job_window.get_jobs()[i].get_tasks_list()] for i in xrange(0, len(job_window.get_jobs()))]
-
-
-class GeneticsHelper(object):
-    def __init__(self, job_window):
-        self.time_matrix = TimeMatrixConverter(Counter()).window_to_matrix(job_window)
-
-    def solve_with(self, slave, steps):
-        self.reset(slave)
-        for _ in xrange(0, steps):
-            slave.step()
-        return self.get_best_solution([slave])
-
-    def reset(self, slave):
-        #TODO: this is based on flowshop_classi_conf, make it more general(operators can have different order)
-        slave.operators[2].time_matrix = self.time_matrix  # now slave evaluates schedule accordingly to new job_window
-        slave.operators[2].JOBS_COUNT = len(self.time_matrix[0]) + 1
-        slave.operators[2].PROCESSORS_COUNT = len(self.time_matrix) + 1
-        slave.initializer.permutation_length = len(self.time_matrix[0])
-        slave.population = []
-        slave.initialize()
-
-    def get_best_solution(self, slaves):
-        logger.debug("Searching for best solution for time_matrix %s", self.time_matrix)
-        jobs_in_current_window = len(self.time_matrix[0])
-        makespans = []
-        result_matrices = []
-        for slave in slaves:
-            permutation = slave.get_best_genotype().permutation
-            self.__adjust_permutation(permutation, jobs_in_current_window)
-            makespan, result_matrix = FlowShopEvaluation(self.time_matrix).compute_makespan(permutation, True)
-            makespans.append(makespan)
-            result_matrices.append(result_matrix)
-        min_makespan_idx = makespans.index(min(makespans))
-        return makespans[min_makespan_idx], result_matrices[min_makespan_idx]
-
-    #Predicted Job Window could have different number of jobs, we have to adjust it
-    def __adjust_permutation(self, permutation, jobs_in_current_window):
-        while len(permutation) != jobs_in_current_window:
-            if len(permutation) > jobs_in_current_window:
-                permutation.remove(len(permutation)-1)
-            else:
-                permutation.append(len(permutation))

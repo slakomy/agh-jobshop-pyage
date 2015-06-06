@@ -1,6 +1,6 @@
 repeats = 1
 
-number_of_problem_deliveries=1
+number_of_problem_deliveries=3
 window_time=250
 numbers_of_aggregates = [2, 4, 6, 8, 10]
 aggregate_sizes = [10]

@@ -1,4 +1,4 @@
-import problem
+from problem import Job, JobUtil, Task, Problem
 import random
 
 

@@ -3,7 +3,7 @@ import logging
 
 from flowshop_genetics import FlowShopEvaluation
 from pyage.core.inject import Inject
-from problem import TimeMatrixConverter, GeneticsHelper
+from problem import TimeMatrixConverter
 from problemGenerator import Counter, DistortedProblemProvider
 from rolling_horizon import JobWindow
 from rolling_horizon import JobBacklog
@@ -19,7 +19,6 @@ class MasterAgent(object):
     @Inject("stop_condition:_MasterAgent__stop_condition")
     def __init__(self, time_matrix, window_time, distortion_factor=0.1, number_of_deliveries=5,
                  steps_for_initial_window=100):
-        self.__current_time_matrix = time_matrix
         self.__window_time = window_time
         self.__steps_for_initial_window = steps_for_initial_window
         self.__number_of_deliveries = number_of_deliveries
@@ -31,9 +30,10 @@ class MasterAgent(object):
         self.__problem_provider = DistortedProblemProvider(distortion_factor)
         self.__converter = TimeMatrixConverter(Counter())
         self.__initial_problem = self.__converter.matrix_to_problem(time_matrix)
+        self.__tasks_per_job = len(self.__initial_problem.get_jobs_list()[0].get_tasks_list())
         self.__backlog.add_problem(self.__initial_problem)
         self.__solve_initial_window()
-        self.__open_new_window()
+        self.__assign_predicted_windows_to_slaves()
 
     def __solve_initial_window(self):
         initial_job_window = self.next_job_window()
@@ -43,7 +43,7 @@ class MasterAgent(object):
         logger.info("Initial window makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
 
     def next_job_window(self):
-        job_window = JobWindow(self.__window_time * len(self.__current_time_matrix) - 2)
+        job_window = JobWindow(self.__window_time * (self.__tasks_per_job - 2))
         while not job_window.is_full() and not self.__backlog.is_empty():
             job_window.add_job(self.__backlog.pop_top_priority_job())
         return job_window
@@ -54,10 +54,17 @@ class MasterAgent(object):
             slave.step()
         if self.window_ended():
             self.__accept_new_problem()
-            self.__close_current_window()
-            self.__open_new_window()
-            # remember to add to each time in matrix current time from timeKeeper, because solution is made assuming that each window starts on time=0
-            self.__timeKeeper.increment()  #temporary workaround because one time unit consists of more than one step and we would open new window several times in a row
+            self.__current_window = self.next_job_window()
+            logger.info("New job window generated: %s", self.__current_window)
+            self.__calculate_schedule_for_current_window()
+            if not self.__backlog.is_empty() or not self.all_delivered():
+                self.__assign_predicted_windows_to_slaves()
+                self.__timeKeeper.increment()
+            else:
+                logger.info("No jobs or problems left for next window. Setting stop condition to true")
+                self.__stop_condition.set_all_jobs_scheduled(True)
+                print "{0}\t{1}\t{2}\t{3}".format(self.__window_time, len(self.__slaves), self.__windows_calculated,
+                                                  self.__summary_makespan)
 
     def window_ended(self):
         return self.__timeKeeper.get_time() % self.__window_time == 0
@@ -69,67 +76,26 @@ class MasterAgent(object):
             logger.debug("Accepting new problem: %s", incoming_problem)
             self.__backlog.add_problem(incoming_problem)
             self.__delivered += 1
-        job_window = self.next_job_window()
-        logger.info("New job window generated: %s", job_window)
-        if job_window.is_empty():
-            self.__stop_condition.set_all_jobs_scheduled(True)
-            print "{0}\t{1}\t{2}\t{3}".format(self.__window_time, len(self.__slaves), self.__windows_calculated,
-                                              self.__summary_makespan)
-        else:
-            time_matrix = self.__converter.window_to_matrix(job_window)
-            self.__current_time_matrix = time_matrix
 
-
-    def __close_current_window(self):
-        makespan, result_matrix = self.get_best_solution()
+    def __calculate_schedule_for_current_window(self):
+        makespan, result_matrix = GeneticsHelper(self.__current_window).get_best_solution(self.__slaves.values())
         self.__summary_makespan += makespan
         self.__windows_calculated += 1
         logger.info("Job window solution found. Makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
         # print "makespan=" + str(makespan) + " result_matrix=" + str(result_matrix)
         # TODO: convert result_matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
 
-    def get_best_solution(self):
-        best_makespan = None
-        best_result_matrix = None
-        logger.debug("Searching for best solution for time_matrix %s", self.__current_time_matrix)
-        jobs_in_current_window = len(self.__current_time_matrix[0])
-        for slave in self.__slaves.values():
-            permutation = slave.get_best_genotype().permutation
-            self.__adjust_permutation(permutation, jobs_in_current_window)
-            makespan, result_matrix = FlowShopEvaluation(self.__current_time_matrix).compute_makespan(permutation, True)
-            logger.debug("Checking solution with makespan=%s", makespan)
-            if best_makespan is None or best_makespan > makespan:
-                logger.debug("Makespan better than recently found best solution.")
-                best_makespan = makespan
-                best_result_matrix = result_matrix
-        return best_makespan, best_result_matrix
-
-    def __open_new_window(self):
-        logger.info("Opening new window")
+    def __assign_predicted_windows_to_slaves(self):
         backlog_jobs = copy.copy(self.__backlog._jobs_priority_queue.queue)
-        if not self.__backlog.is_empty() or not self.all_delivered():
-            for slave in self.__slaves.values():
-                self.__assign_predicted_problem(slave)
-                self.__backlog._jobs_priority_queue.queue = backlog_jobs
-        else:
-            self.__stop_condition.set_all_jobs_scheduled(True)
-            print "{0}\t{1}\t{2}\t{3}".format(self.__window_time, len(self.__slaves), self.__windows_calculated,
-                                              self.__summary_makespan)
+        for slave in self.__slaves.values():
+            self.__assign_predicted_window(slave)
+            self.__backlog._jobs_priority_queue.queue = backlog_jobs
 
-    def reset_slave(self, slave, jobs_in_window, time_matrix):
-        logger.debug("reseting slave")
-        # TODO: this is based on flowshop_classi_conf, make it more general(operators can have different order)
-        slave.operators[2].time_matrix = time_matrix  # now slave evaluates schedule accordingly to new job_window
-        slave.operators[2].JOBS_COUNT = len(time_matrix[0]) + 1
-        slave.operators[2].PROCESSORS_COUNT = len(time_matrix) + 1
-        slave.initializer.permutation_length = jobs_in_window
-        slave.population = []
-        slave.initialize()
 
     def get_history(self):
         return self.__manufacture.get_history()
 
-    def __assign_predicted_problem(self, slave):
+    def __assign_predicted_window(self, slave):
         if not self.all_delivered():
             predicted_problem = self.__problem_provider.generate_distorted_problem(self.__initial_problem,
                                                                                    self.__timeKeeper.get_time() + self.__window_time)
@@ -139,15 +105,8 @@ class MasterAgent(object):
         job_window = self.next_job_window()
         logger.debug("Predicted job window generated: %s", job_window)
         time_matrix = self.__converter.window_to_matrix(job_window)
-        logger.debug("Time matrix for predicted job window: %s", str(time_matrix))
-        self.reset_slave(slave, len(job_window.get_jobs()), time_matrix)
-
-    def __adjust_permutation(self, permutation, jobs_in_current_window):
-        while len(permutation) != jobs_in_current_window:
-            if len(permutation) > jobs_in_current_window:
-                permutation.remove(len(permutation) - 1)
-            else:
-                permutation.append(len(permutation))
+        logger.info("Time matrix for predicted job window: %s", str(time_matrix))
+        GeneticsHelper(job_window).reset(slave)
 
     def all_delivered(self):
         return self.__delivered == self.__number_of_deliveries
@@ -177,3 +136,45 @@ def _agents_factory(count, agent_type):
         return agents
 
     return factory
+
+
+class GeneticsHelper(object):
+    def __init__(self, job_window):
+        self.time_matrix = TimeMatrixConverter(Counter()).window_to_matrix(job_window)
+
+    def solve_with(self, slave, steps):
+        self.reset(slave)
+        for _ in xrange(0, steps):
+            slave.step()
+        return self.get_best_solution([slave])
+
+    def reset(self, slave):
+        #TODO: this is based on flowshop_classi_conf, make it more general(operators can have different order)
+        slave.operators[2].time_matrix = self.time_matrix  # now slave evaluates schedule accordingly to new job_window
+        slave.operators[2].JOBS_COUNT = len(self.time_matrix[0]) + 1
+        slave.operators[2].PROCESSORS_COUNT = len(self.time_matrix) + 1
+        slave.initializer.permutation_length = len(self.time_matrix[0])
+        slave.population = []
+        slave.initialize()
+
+    def get_best_solution(self, slaves):
+        logger.debug("Searching for best solution for time_matrix %s", self.time_matrix)
+        jobs_in_current_window = len(self.time_matrix[0])
+        makespans = []
+        result_matrices = []
+        for slave in slaves:
+            permutation = slave.get_best_genotype().permutation
+            self.__adjust_permutation(permutation, jobs_in_current_window)
+            makespan, result_matrix = FlowShopEvaluation(self.time_matrix).compute_makespan(permutation, True)
+            makespans.append(makespan)
+            result_matrices.append(result_matrix)
+        min_makespan_idx = makespans.index(min(makespans))
+        return makespans[min_makespan_idx], result_matrices[min_makespan_idx]
+
+    #Predicted Job Window could have different number of jobs, we have to adjust it
+    def __adjust_permutation(self, permutation, jobs_in_current_window):
+        while len(permutation) != jobs_in_current_window:
+            if len(permutation) > jobs_in_current_window:
+                permutation.remove(len(permutation)-1)
+            else:
+                permutation.append(len(permutation))
