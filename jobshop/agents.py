@@ -4,7 +4,7 @@ import logging
 from flowshop_genetics import FlowShopEvaluation
 from pyage.core.inject import Inject
 from problem import TimeMatrixConverter
-from problemGenerator import Counter, DistortedProblemProvider
+from problemGenerator import Counter, DistortedProblemGenerator
 from rolling_horizon import JobWindow
 from rolling_horizon import JobBacklog
 
@@ -17,17 +17,15 @@ class MasterAgent(object):
     @Inject("manufacture:_MasterAgent__manufacture")
     @Inject("timeKeeper:_MasterAgent__timeKeeper")
     @Inject("stop_condition:_MasterAgent__stop_condition")
-    def __init__(self, time_matrix, window_time, distortion_factor=0.1, number_of_deliveries=5,
-                 steps_for_initial_window=100):
+    @Inject("problem_provider:_MasterAgent__problem_provider")
+    def __init__(self, time_matrix, window_time, distortion_factor=0.1, steps_for_initial_window=100):
         self.__window_time = window_time
         self.__steps_for_initial_window = steps_for_initial_window
-        self.__number_of_deliveries = number_of_deliveries
-        self.__delivered = 0
         self.__summary_makespan = 0
         self.__windows_calculated = 0
         self.__stop_condition.set_all_jobs_scheduled(False)
         self.__backlog = JobBacklog()
-        self.__problem_provider = DistortedProblemProvider(distortion_factor)
+        self.__problem_generator = DistortedProblemGenerator(distortion_factor)
         self.__converter = TimeMatrixConverter(Counter())
         self.__initial_problem = self.__converter.matrix_to_problem(time_matrix)
         self.__tasks_per_job = len(self.__initial_problem.get_jobs_list()[0].get_tasks_list())
@@ -57,25 +55,26 @@ class MasterAgent(object):
             self.__current_window = self.next_job_window()
             logger.info("New job window generated: %s", self.__current_window)
             self.__calculate_schedule_for_current_window()
-            if not self.__backlog.is_empty() or not self.all_delivered():
+            if not self.__backlog.is_empty() or self.__problem_provider.has_next():
                 self.__assign_predicted_windows_to_slaves()
                 self.__timeKeeper.increment()
             else:
                 logger.info("No jobs or problems left for next window. Setting stop condition to true")
                 self.__stop_condition.set_all_jobs_scheduled(True)
-                print "{0}\t{1}\t{2}\t{3}".format(self.__window_time, len(self.__slaves), self.__windows_calculated,
-                                                  self.__summary_makespan)
+                # print "{0}\t{1}\t{2}\t{3}".format(self.__window_time, len(self.__slaves), self.__windows_calculated,
+                #                                   self.__summary_makespan)
+                print "{0}\t{1}".format(len(self.__slaves), self.__summary_makespan)
+
 
     def window_ended(self):
         return self.__timeKeeper.get_time() % self.__window_time == 0
 
     def __accept_new_problem(self):
-        if not self.all_delivered():
-            incoming_problem = self.__problem_provider.generate_distorted_problem(self.__initial_problem,
-                                                                                  self.__timeKeeper.get_time())
+        if self.__problem_provider.has_next():
+            incoming_problem = self.__problem_provider.provide_next(self.__timeKeeper.get_time())
             logger.debug("Accepting new problem: %s", incoming_problem)
+            logger.info("Incoming problem matrix: %s", str(self.__converter.problem_to_matrix(incoming_problem)))
             self.__backlog.add_problem(incoming_problem)
-            self.__delivered += 1
 
     def __calculate_schedule_for_current_window(self):
         makespan, result_matrix = GeneticsHelper(self.__current_window).get_best_solution(self.__slaves.values())
@@ -96,8 +95,8 @@ class MasterAgent(object):
         return self.__manufacture.get_history()
 
     def __assign_predicted_window(self, slave):
-        if not self.all_delivered():
-            predicted_problem = self.__problem_provider.generate_distorted_problem(self.__initial_problem,
+        if self.__problem_provider.has_next():
+            predicted_problem = self.__problem_generator.generate_distorted_problem(self.__initial_problem,
                                                                                    self.__timeKeeper.get_time() + self.__window_time)
             logger.debug("New predicted problem generated: %s", predicted_problem)
             self.__backlog.add_problem(predicted_problem)
@@ -108,15 +107,12 @@ class MasterAgent(object):
         logger.info("Time matrix for predicted job window: %s", str(time_matrix))
         GeneticsHelper(job_window).reset(slave)
 
-    def all_delivered(self):
-        return self.__delivered == self.__number_of_deliveries
 
-
-def masters_factory(count, job_window_time, time_matrix, distortion_factor=0.1, number_of_deliveries=5):
+def masters_factory(count, job_window_time, time_matrix, distortion_factor=0.1):
     def factory():
         agents = {}
         for i in xrange(count):
-            agent = MasterAgent(time_matrix, job_window_time, distortion_factor, number_of_deliveries)
+            agent = MasterAgent(time_matrix, job_window_time, distortion_factor)
             agents["Master_" + str(i)] = agent
         return agents
 

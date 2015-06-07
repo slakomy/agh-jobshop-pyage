@@ -1,6 +1,6 @@
 from unittest import TestCase
 from problem import Problem, Job, Task, JobUtil
-from problemGenerator import DistortedProblemProvider
+from problemGenerator import DistortedProblemGenerator
 
 
 class TestDistortedProblemProvider(TestCase):
@@ -8,7 +8,7 @@ class TestDistortedProblemProvider(TestCase):
         self.base_problem = Problem([Job("jid1", [Task("machine", 20)]), Job("jid1", [Task("machine", 40)]), Job("jid1", [Task("machine", 70)])])
         self.base_problem_duration = 20 + 40 + 70
         self.distortion_factor = 0.1
-        self.distorted_problem_provider = DistortedProblemProvider(self.distortion_factor)
+        self.distorted_problem_provider = DistortedProblemGenerator(self.distortion_factor)
 
     def test_generated_problem_differs_by_more_than_distortion_factor(self):
         distorted_problem = self.distorted_problem_provider.generate_distorted_problem(self.base_problem)

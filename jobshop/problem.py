@@ -271,17 +271,17 @@ class TimeMatrixConverter(object):
     def __init__(self, id_generator):
         self.id_generator = id_generator
 
-    def matrix_to_problem(self, time_matrix):
+    def matrix_to_problem(self, time_matrix, arrival_time=0):
         jobs_list = []
         for job in xrange(0, len(time_matrix[0])):
-            jobs_list.append(self.job_from_column(time_matrix, job))
+            jobs_list.append(self.job_from_column(time_matrix, job, arrival_time))
         return Problem(jobs_list)
 
-    def job_from_column(self, time_matrix, job_number):
+    def job_from_column(self, time_matrix, job_number, arrival_time):
         tasks_list = []
         for task in xrange(0, len(time_matrix)):
             tasks_list.append(Task(task, time_matrix[task][job_number]))
-        return Job(self.id_generator.next(), tasks_list)
+        return Job(self.id_generator.next(), tasks_list, arrival_time)
 
     def window_to_matrix(self, job_window):
         tasks_number = len(job_window.get_jobs()[0].get_tasks_list())
@@ -292,4 +292,13 @@ class TimeMatrixConverter(object):
                 time_matrix[task_number].append(task.duration)
                 task_number += 1
         return time_matrix
-        #return [[task.duration for task in job_window.get_jobs()[i].get_tasks_list()] for i in xrange(0, len(job_window.get_jobs()))]
+
+    def problem_to_matrix(self, problem):
+        tasks_number = len(problem.get_jobs_list()[0].get_tasks_list())
+        time_matrix = [[] for i in xrange(0, tasks_number)]
+        for job in problem.get_jobs_list():
+            task_number = 0
+            for task in job.get_tasks_list():
+                time_matrix[task_number].append(task.duration)
+                task_number += 1
+        return time_matrix

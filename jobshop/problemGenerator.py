@@ -1,14 +1,17 @@
-from problem import Job, JobUtil, Task, Problem
+from problem import Job, JobUtil, Task, Problem, TimeMatrixConverter
 import random
+
+counter = 0
 
 
 class Counter(object):
     def __init__(self):
-        self.counter = 100
+        pass
 
     def get_next(self):
-        self.counter += 1
-        return self.counter - 1
+        global counter
+        counter += 1
+        return counter
 
     def next(self):
         return self.get_next()
@@ -103,7 +106,7 @@ class RandomizedProblemProvider(object):
         return new_job
 
 
-class DistortedProblemProvider(object):
+class DistortedProblemGenerator(object):
     def __init__(self, distortion_factor=0.1):
         self.distortion_factor = distortion_factor
 
@@ -112,11 +115,11 @@ class DistortedProblemProvider(object):
         distorted_job_list = problem.get_jobs_list()
         for job in distorted_job_list:
             problem_active_execution_time += JobUtil.calculate_active_execution_time(job)
+            job.arrival_time = arrival_time
         expected_distortion_level = self.distortion_factor * problem_active_execution_time
         distortion_level = 0
         while distortion_level < expected_distortion_level:
             job = self.__draw_random_job(distorted_job_list)
-            job.arrival_time = arrival_time
             task = self.__draw_random_task(job)
             distortion_level += self.__distort_task(task)
         return Problem(distorted_job_list)
@@ -135,6 +138,22 @@ class DistortedProblemProvider(object):
         else:
             task.duration += distortion
         return distortion
+
+
+class ProblemProvider(object):
+    def __init__(self, problems_feed):
+        self.problems_feed = problems_feed
+        self.current_idx = 0
+
+    def provide_next(self, arrival_time):
+        if self.current_idx >= len(self.problems_feed):
+            raise IndexError
+        idx = self.current_idx
+        self.current_idx += 1
+        return TimeMatrixConverter(Counter()).matrix_to_problem(self.problems_feed[idx], arrival_time)
+
+    def has_next(self):
+        return self.current_idx < len(self.problems_feed)
 
 
 class RandomizedTasksProvider(object):
