@@ -41,7 +41,8 @@ def generate_incoming_problems(initial_problem, distortion_factor, problems_coun
 def main():
     for initial_problem in l_conf.matrices:
         for distortion_factor in l_conf.distortion_factors:
-            incoming_problems = generate_incoming_problems(initial_problem['matrix'], distortion_factor, l_conf.number_of_deliveries)
+            #incoming_problems = generate_incoming_problems(initial_problem['matrix'], distortion_factor, l_conf.number_of_deliveries)
+            incoming_problems = [[[3, 15, 16, 9, 9, 16, 5], [30, 1, 22, 1, 6, 30, 9], [12, 13, 14, 26, 3, 16, 3], [103, 15, 5, 32, 13, 15, 4]], [[8, 19, 10, 36, 11, 35, 5], [21, 5, 11, 3, 7, 30, 4], [12, 13, 14, 15, 9, 16, 5], [16, 15, 34, 11, 10, 9, 11]], [[8, 18, 35, 1, 16, 6, 10], [30, 0, 11, 3, 1, 21, 5], [3, 15, 1, 15, 27, 5, 5], [16, 9, 13, 5, 10, 9, 11]]]
             print "Initial problem matrix: {0}\nIncoming problem matrices: {1}\nDistortion factor: {2}".format(initial_problem,
                                                                                                                incoming_problems,
                                                                                                                distortion_factor)
