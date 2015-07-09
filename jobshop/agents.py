@@ -1,5 +1,6 @@
 import copy
 import logging
+import sys
 
 from flowshop_genetics import FlowShopEvaluation
 from pyage.core.inject import Inject
@@ -127,6 +128,81 @@ class MasterAgent(object):
         GeneticsHelper(job_window).reset(slave)
 
 
+class NonPredictiveMasterAgent(object):
+    @Inject("slaves:_NonPredictiveMasterAgent__slaves")
+    @Inject("manufacture:_NonPredictiveMasterAgent__manufacture")
+    @Inject("timeKeeper:_NonPredictiveMasterAgent__timeKeeper")
+    @Inject("stop_condition:_NonPredictiveMasterAgent__stop_condition")
+    @Inject("problem_provider:_NonPredictiveMasterAgent__problem_provider")
+    def __init__(self, time_matrix, window_time, distortion_factor=0.1, steps_for_initial_window=100):
+        self.__window_time = window_time
+        self.__steps_for_initial_window = steps_for_initial_window
+        self.__summary_makespan = 0
+        self.__windows_calculated = 0
+        self.__stop_condition.set_all_jobs_scheduled(False)
+        self.__backlog = JobBacklog()
+        self.__problem_generator = DistortedProblemGenerator(distortion_factor)
+        self.__converter = TimeMatrixConverter(Counter())
+        self.__initial_problem = self.__converter.matrix_to_problem(time_matrix)
+        self.__tasks_per_job = len(self.__initial_problem.get_jobs_list()[0].get_tasks_list())
+        self.__backlog.add_problem(self.__initial_problem)
+        self.__solve_initial_window()
+
+    def __solve_initial_window(self):
+        initial_job_window = self.next_job_window()
+        logger.info("About to solve initial job window %s", initial_job_window)
+        makespan, result_matrix = GeneticsHelper(initial_job_window).solve_with(self.__slaves.values()[0],
+                                                                                self.__steps_for_initial_window)
+        logger.info("Initial window makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
+
+    def next_job_window(self):
+        job_window = JobWindow(self.__window_time * (self.__tasks_per_job - 2))
+        while not job_window.is_full() and not self.__backlog.is_empty():
+            job_window.add_job(self.__backlog.pop_top_priority_job())
+        return job_window
+
+    def step(self):
+        self.__timeKeeper.step()
+        #for slave in self.__slaves.values():
+        #    slave.step()
+        if self.window_ended():
+            self.__accept_new_problem()
+            self.__current_window = self.next_job_window()
+            logger.info("New job window generated: %s", self.__current_window)
+            self.__calculate_schedule_for_current_window()
+            if not self.__backlog.is_empty() or self.__problem_provider.has_next():
+                self.__timeKeeper.increment()
+            else:
+                logger.info("No jobs or problems left for next window. Setting stop condition to true")
+                self.__stop_condition.set_all_jobs_scheduled(True)
+                # print "{0}\t{1}\t{2}\t{3}".format(self.__window_time, len(self.__slaves), self.__windows_calculated,
+                #                                   self.__summary_makespan)
+                print "{0}\t{1}".format(len(self.__slaves), self.__summary_makespan)
+
+    def window_ended(self):
+        return self.__timeKeeper.get_time() % self.__window_time == 0
+
+    def __accept_new_problem(self):
+        if self.__problem_provider.has_next():
+            incoming_problem = self.__problem_provider.provide_next(self.__timeKeeper.get_time())
+            logger.debug("Accepting new problem: %s", incoming_problem)
+            logger.info("Incoming problem matrix: %s", str(self.__converter.problem_to_matrix(incoming_problem)))
+            self.__backlog.add_problem(incoming_problem)
+
+    def __calculate_schedule_for_current_window(self):
+        steps_required, makespan, result_matrix = GeneticsHelper(self.__current_window).solve_until_no_progress(self.__slaves.values()[0])
+        for _ in xrange(steps_required):
+            self.__timeKeeper.step()        #time passed for calculation
+        self.__summary_makespan += makespan
+        self.__windows_calculated += 1
+        logger.info("Job window solution found. Steps required for finding solution=%s, makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
+        # print "makespan=" + str(makespan) + " result_matrix=" + str(result_matrix)
+        # TODO: convert result_matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
+
+    def get_history(self):
+        return self.__manufacture.get_history()
+
+
 def masters_factory(count, job_window_time, time_matrix, distortion_factor=0.1):
     def factory():
         agents = {}
@@ -171,6 +247,30 @@ class GeneticsHelper(object):
         slave.initializer.permutation_length = len(self.time_matrix[0])
         slave.population = []
         slave.initialize()
+
+    def solve_until_no_progress(self, slave):
+        self.reset(slave)
+        best_makespan = sys.maxint
+        best_result_matrix = None
+        steps_required = 0
+        no_progress = False
+        while True:
+            slave.step()
+            steps_required += 1
+            permutation = slave.get_best_genotype().permutation
+            makespan, result_matrix = FlowShopEvaluation(self.time_matrix).compute_makespan(permutation, True)
+            if makespan < best_makespan:
+                best_makespan = makespan
+                best_result_matrix = result_matrix
+                no_progress = False
+            else:
+                if no_progress:
+                    break
+                else:
+                    no_progress = True
+        logger.info("Steps required for finding optimum solution: %d", steps_required)
+        print "Steps required for finding optimum solution: ", str(steps_required)
+        return steps_required, best_makespan, best_result_matrix
 
     def get_best_solution(self, slaves):
         logger.debug("Searching for best solution for time_matrix %s", self.time_matrix)
