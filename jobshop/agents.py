@@ -7,7 +7,7 @@ from problem import TimeMatrixConverter
 from problemGenerator import Counter, DistortedProblemGenerator
 from rolling_horizon import JobWindow
 from rolling_horizon import JobBacklog
-
+from stats import GanttStats
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,11 @@ class MasterAgent(object):
         self.__initial_problem = self.__converter.matrix_to_problem(time_matrix)
         self.__tasks_per_job = len(self.__initial_problem.get_jobs_list()[0].get_tasks_list())
         self.__backlog.add_problem(self.__initial_problem)
+        self.__history = []
+        self.__stats = GanttStats()
         self.__solve_initial_window()
         self.__assign_predicted_windows_to_slaves()
+
 
     def __solve_initial_window(self):
         initial_job_window = self.next_job_window()
@@ -39,6 +42,14 @@ class MasterAgent(object):
         makespan, result_matrix = GeneticsHelper(initial_job_window).solve_with(self.__slaves.values()[0],
                                                                                 self.__steps_for_initial_window)
         logger.info("Initial window makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
+        time_matrix = self.__converter.window_to_matrix(initial_job_window)
+        for machine_id in xrange(len(result_matrix)):
+            for job_id in xrange(len(result_matrix[machine_id])):
+                time = time_matrix[machine_id][job_id]
+                start_time = result_matrix[machine_id][job_id]
+                self.__history.append([machine_id, job_id, start_time, time, 'Tick ' + str(start_time)])
+        self.__stats.summarize(self.get_history())
+        print self.get_history()
 
     def next_job_window(self):
         job_window = JobWindow(self.__window_time * (self.__tasks_per_job - 2))
@@ -82,6 +93,14 @@ class MasterAgent(object):
         self.__windows_calculated += 1
         logger.info("Job window solution found. Makespan=%s, result_matrix=%s", str(makespan), str(result_matrix))
         # print "makespan=" + str(makespan) + " result_matrix=" + str(result_matrix)
+        time_matrix = self.__converter.window_to_matrix(self.__current_window)
+        for machine_id in xrange(len(result_matrix)):
+            for job_id in xrange(len(result_matrix[machine_id])):
+                time = time_matrix[machine_id][job_id]
+                start_time = result_matrix[machine_id][job_id]
+                self.__history.append([machine_id, job_id, start_time, time, 'Tick ' + str(self.__timeKeeper.get_time() + start_time)])
+        self.__stats.summarize(self.get_history())
+        print self.get_history()
         # TODO: convert result_matrix to solution and add to manufacture as gantt statistics are generated based on manufacture
 
     def __assign_predicted_windows_to_slaves(self):
@@ -92,7 +111,7 @@ class MasterAgent(object):
 
 
     def get_history(self):
-        return self.__manufacture.get_history()
+        return self.__history
 
     def __assign_predicted_window(self, slave):
         if self.__problem_provider.has_next():

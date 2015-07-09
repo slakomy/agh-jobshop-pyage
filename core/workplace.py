@@ -15,7 +15,7 @@ WORKPLACE = "workplace"
 
 
 class Workplace(Addressable):
-    @Inject("agents:_Workplace__agents", "stop_condition", "stats")
+    @Inject("agents:_Workplace__agents", "stop_condition")
     @InjectOptional("ns_hostname", "daemon")
     def __init__(self):
         super(Workplace, self).__init__()
@@ -39,7 +39,7 @@ class Workplace(Addressable):
 
     def stop(self):
         self.stopped = True
-        self.stats.summarize(self.__agents.values())
+        # self.stats.summarize(self.__agents.values())
         try:
             for a in self.__agents.values():
                 a.stop()
@@ -52,7 +52,7 @@ class Workplace(Addressable):
             logger.info("=========STEP %s=============", self.steps)
             for agent in self.__agents.values():
                 agent.step()
-            self.stats.update(self.steps, self.__agents.values())
+            # self.stats.update(self.steps, self.__agents.values())
             if self.stop_condition.should_stop(self):
                 self.stop()
         except:

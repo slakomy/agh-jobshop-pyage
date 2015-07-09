@@ -39,6 +39,7 @@ class GanttGenerator(object):
                 job_nr = machine[start_time]['job_nr']
                 duration = machine[start_time]['duration']
                 color = self.__colors[job_nr % len(self.__colors)]
+                color = map(lambda x: x * 222, color)   #Bo wartosci rgb wychodzily z niewiadomych przyczyn duzo za male
 
                 plt.hlines(machine_nr, start_time, start_time + duration, colors=color, lw=50)
                 plt.text(start_time + 0.1, machine_nr + 0.1, str(job_nr), bbox=dict(facecolor='white', alpha=1.0)) #fontdict=dict(color='white'))

@@ -18,14 +18,12 @@ class DummyStats(Statistics):
 	def summarize(self, agents):
 		pass
 
-class GanttStatistics(Statistics):
+class GanttStatistics():
     gantt = GanttGenerator('gantt')
     def update(self, step_count, agents):
         pass
 
-    def summarize(self, agents):
-        i = 1
-        for a in agents:
-            for his in a.get_history():
-                self.gantt.add_task(his[0], his[1], his[2], his[3])
-                self.gantt.generate('Agent ' + str(i) + '-' + his[4])
+    def summarize(self, stats):
+        for a in stats:
+            self.gantt.add_task(a[0], a[1], a[2], a[3])
+            self.gantt.generate(a[4])
